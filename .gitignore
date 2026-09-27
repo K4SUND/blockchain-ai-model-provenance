@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Hardhat build output
+artifacts/
+cache/
+coverage/
+typechain-types/
+ignition/deployments/chain-31337/
+
+# Frontend build output
+frontend/dist/
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+!frontend/.env.example
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Demonstration model binaries can be large and may have separate licences.
+sample-models/*
+!sample-models/README.md
+!sample-models/*.json
+
+
+
+
+

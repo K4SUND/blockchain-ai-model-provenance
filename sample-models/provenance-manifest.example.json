@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "1.0",
+  "modelName": "DemoClassifier",
+  "modelVersion": "1.0.0",
+  "format": "ONNX",
+  "publisher": "ModelGuard demonstration team",
+  "sourceUrl": "REPLACE_WITH_THE_ORIGINAL_SOURCE",
+  "license": "REPLACE_WITH_THE_MODEL_LICENSE",
+  "dataset": {
+    "name": "Claimed dataset name",
+    "version": "Claimed dataset version"
+  },
+  "notes": "Existing model artifact used only for the ModelGuard demonstration."
+}
+
