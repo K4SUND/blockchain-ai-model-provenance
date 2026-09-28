@@ -260,12 +260,12 @@ describe("ModelRegistry", function () {
         .withArgs(modelId, MODEL_NAME, VERSION, MODEL_HASH, publisher.address);
 
       // The frontend builds version history by filtering on the indexed topics.
-      // Filter arguments are positional; non-indexed parameters must be null.
+      // Filter arguments are positional; leave non-indexed parameters undefined.
       const byModel = await registry.queryFilter(
         registry.filters.ModelRegistered(modelId),
       );
       const byPublisher = await registry.queryFilter(
-        registry.filters.ModelRegistered(null, null, null, null, publisher.address),
+        registry.filters.ModelRegistered(undefined, undefined, undefined, undefined, publisher.address),
       );
       expect(byModel).to.have.lengthOf(1);
       expect(byPublisher).to.have.lengthOf(1);
