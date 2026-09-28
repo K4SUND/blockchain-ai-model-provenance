@@ -8,6 +8,7 @@ cache/
 coverage/
 typechain-types/
 ignition/deployments/chain-31337/
+frontend/src/contracts/deployment.json
 
 # Frontend build output
 frontend/dist/

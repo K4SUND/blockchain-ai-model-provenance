@@ -176,3 +176,22 @@ npm run check
 
 The complete behavioral test suite is owned by the testing workstream. The contract should not be considered integration-complete until those pending tests are implemented and pass.
 
+
+## SC-05 independent review (Ninada)
+
+Scope: `ModelRegistry.sol` against the SC-05 acceptance criteria, backed by the test suite in `test/ModelRegistry.ts` (37 tests, including mutation checks that removing the duplicate, admin, or double-revocation guard makes tests fail).
+
+### Acceptance criteria
+
+| Criterion | Result |
+|---|---|
+| No overwrite or delete path | Pass. The only storage writes are `registerModel` (guarded by `ModelAlreadyExists`, including for revoked records) and `revokeModel` (sets only `revoked` and `revocationReason`). There is no delete or un-revoke function. |
+| Permissions checked | Pass. Registration requires `PUBLISHER_ROLE`; revocation requires the original publisher or `DEFAULT_ADMIN_ROLE`; role changes require `DEFAULT_ADMIN_ROLE`. Each has success and failure tests. |
+| Comments match behavior | Pass. NatSpec and this README agree with tested behavior, including the revocation check order and revocation by a publisher whose role was later removed. |
+
+### Recommendations for the team (no change made)
+
+1. **Model names have no owner.** Any account with `PUBLISHER_ROLE` can register a new version under a name another publisher uses (for example, a second publisher can add `DemoClassifier` `2.0.0` after the first registered `1.0.0`). Records are still attributed correctly, so the frontend must show the publisher address prominently and verifiers must check it. If the team wants names reserved per publisher, the contract needs a name-to-owner mapping; that is an interface change for Kasun to decide.
+2. **Single administrator can lock out administration.** If the only `DEFAULT_ADMIN_ROLE` holder renounces the role or loses its key, no one can grant publishers or perform emergency revocation. Acceptable for the demo; for a public deployment consider a second administrator or OpenZeppelin `AccessControlDefaultAdminRules`.
+3. **`ModelRegistered` omits `provenanceHash` and `metadataURI`.** Version history built from events alone cannot show them, so the frontend needs one `getModel` call per version. Adding them to the event would change the ABI; decide before the frontend depends on the event shape.
+4. **Visually similar names are distinct.** Names are compared byte-for-byte, so trailing spaces or Unicode look-alikes produce different IDs. The frontend should trim input and warn about unusual characters rather than rely on the contract.

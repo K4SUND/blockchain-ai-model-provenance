@@ -42,8 +42,8 @@ Kasun also coordinates the repository and task board. Every member must understa
 | ID | Task | Owner | Depends on | Acceptance criteria | Status |
 |---|---|---|---|---|---|
 | SETUP-01 | Review the scaffold and confirm responsibilities | Kasun, Ninada, Oshani, Imalsha | None | Everyone accepts their workstream and reviewer assignment | Not started |
-| SETUP-02 | Install root and frontend dependencies | Ninada | SETUP-01 | `npm ci` succeeds in the root and frontend packages | Not started |
-| SETUP-03 | Run the initial checks | Ninada | SETUP-02 | Contract compiles, starter tests pass, frontend builds | Not started |
+| SETUP-02 | Install root and frontend dependencies | Ninada | SETUP-01 | `npm ci` succeeds in the root and frontend packages | Complete |
+| SETUP-03 | Run the initial checks | Ninada | SETUP-02 | Contract compiles, starter tests pass, frontend builds | Complete |
 | SETUP-04 | Create remote repository and branch protection | Kasun | SETUP-03 | Repository is accessible and direct pushes to `main` are discouraged/protected | Not started |
 | SETUP-05 | Create task issues from this plan | Kasun | SETUP-04 | Each implementation task has an assignee and task ID | Not started |
 
@@ -55,7 +55,7 @@ Kasun also coordinates the repository and task board. Every member must understa
 | SC-02 | Implement `registerModel` | Kasun | SC-01 | Valid publisher registration works; bad inputs and duplicates revert; event emitted | Complete |
 | SC-03 | Implement `revokeModel` | Kasun | SC-02 | Publisher/admin policy enforced; reason stored; double revocation rejected | Complete |
 | SC-04 | Implement `getModel` and finalize `modelExists` | Kasun | SC-02 | Existing record is returned and missing record behavior is documented/testable | Complete |
-| SC-05 | Contract security review and NatSpec cleanup | Kasun and Ninada | SC-02–SC-04 | No overwrite/delete path, permissions checked, comments match behavior | Kasun complete — awaiting Ninada review |
+| SC-05 | Contract security review and NatSpec cleanup | Kasun and Ninada | SC-02–SC-04 | No overwrite/delete path, permissions checked, comments match behavior | Complete — Ninada review in `contracts/README.md`; recommendations open for Kasun |
 
 ### Contract owner notes
 
@@ -67,13 +67,13 @@ Kasun also coordinates the repository and task board. Every member must understa
 
 | ID | Task | Owner | Depends on | Acceptance criteria | Status |
 |---|---|---|---|---|---|
-| TEST-01 | Confirm starter constructor/ID tests | Ninada | SETUP-03 | Starter tests pass on a clean checkout | Not started |
-| TEST-02 | Registration and authorization tests | Ninada | SC-02 | All registration TODO tests implemented and passing | Not started |
-| TEST-03 | Lookup and versioning tests | Ninada | SC-04 | Record, existence, missing record, and multiple-version cases pass | Not started |
-| TEST-04 | Revocation and event tests | Ninada | SC-03 | Permission, state, repeat-revocation, and event cases pass | Not started |
-| DEP-01 | Validate local Ignition deployment | Ninada | SC-04 | Contract deploys to a fresh `hardhat node` | Not started |
-| DEP-02 | Make initial admin configurable for public deployment | Ninada | DEP-01 | Deployment does not assume account 0 outside local development | Not started |
-| DEP-03 | Export ABI/address for the frontend | Ninada | DEP-01 | One documented command updates generated frontend contract files | Not started |
+| TEST-01 | Confirm starter constructor/ID tests | Ninada | SETUP-03 | Starter tests pass on a clean checkout | Complete |
+| TEST-02 | Registration and authorization tests | Ninada | SC-02 | All registration TODO tests implemented and passing | Complete |
+| TEST-03 | Lookup and versioning tests | Ninada | SC-04 | Record, existence, missing record, and multiple-version cases pass | Complete |
+| TEST-04 | Revocation and event tests | Ninada | SC-03 | Permission, state, repeat-revocation, and event cases pass | Complete |
+| DEP-01 | Validate local Ignition deployment | Ninada | SC-04 | Contract deploys to a fresh `hardhat node` | Complete |
+| DEP-02 | Make initial admin configurable for public deployment | Ninada | DEP-01 | Deployment does not assume account 0 outside local development | Complete |
+| DEP-03 | Export ABI/address for the frontend | Ninada | DEP-01 | One documented command updates generated frontend contract files | Complete |
 | DEP-04 | Optional Sepolia deployment | Ninada | All MVP tasks | Deployed address recorded; no secrets committed | Backlog |
 
 ### Test owner notes
