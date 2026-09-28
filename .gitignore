@@ -33,6 +33,9 @@ sample-models/*
 !sample-models/README.md
 !sample-models/*.json
 
+# Personal temporary hashing test
+frontend/src/utils/testHash.js
+
 
 
 

@@ -2,26 +2,32 @@
  * Convert binary bytes into the 0x-prefixed hexadecimal format expected by a
  * Solidity bytes32 value.
  *
- * TODO(FE-03): Implement this helper and add unit tests before using it for
- * registrations. The same helper must be used by registration and verification.
+ * @param {Uint8Array} bytes
+ * @returns {string}
  */
-function bytesToHex(_bytes) {
-  throw new Error("TODO(FE-03): implement bytesToHex");
+function bytesToHex(bytes) {
+  return (
+    "0x" +
+    Array.from(bytes)
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("")
+  );
 }
 
 /**
  * Calculate the SHA-256 digest of a browser File without uploading it.
  *
- * @param {File} _file model or provenance-manifest file selected by the user
+ * @param {File} file Model or provenance-manifest file selected by the user
  * @returns {Promise<string>} 0x-prefixed 32-byte hexadecimal digest
  */
-export async function hashFile(_file) {
-  // Intended implementation:
-  // 1. validate that a File was supplied;
-  // 2. await file.arrayBuffer();
-  // 3. await crypto.subtle.digest("SHA-256", bytes);
-  // 4. return bytesToHex(new Uint8Array(digest)).
-  bytesToHex(new Uint8Array());
-  throw new Error("TODO(FE-03): implement hashFile");
-}
+export async function hashFile(file) {
+  if (!(file instanceof File)) {
+    throw new TypeError("A valid File must be provided.");
+  }
 
+  const bytes = await file.arrayBuffer();
+
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+
+  return bytesToHex(new Uint8Array(digest));
+}
