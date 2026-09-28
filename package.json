@@ -12,7 +12,8 @@
     "compile": "hardhat compile",
     "test": "hardhat test",
     "node": "hardhat node",
-    "deploy:local": "hardhat ignition deploy ignition/modules/ModelRegistry.ts --network localhost",
+    "deploy:local": "hardhat ignition deploy ignition/modules/ModelRegistry.ts --network localhost --parameters ignition/parameters/localhost.json && npm run export:frontend",
+    "export:frontend": "hardhat run --network localhost scripts/export-frontend-contract.ts",
     "frontend:dev": "npm --prefix frontend run dev",
     "frontend:build": "npm --prefix frontend run build",
     "check": "npm run compile && npm run test && npm run frontend:build"
