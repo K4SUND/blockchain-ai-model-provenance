@@ -145,6 +145,8 @@ Keep the local blockchain running. Open a second terminal in the repository root
 npm run deploy:local
 ```
 
+The deployment uses `ignition/parameters/localhost.json`, which makes Hardhat account 0 the initial administrator and publisher. After deploying, the command automatically runs `npm run export:frontend`, which writes the ABI and deployment record to `frontend/src/contracts/` (see `frontend/src/contracts/README.md`).
+
 The deployment output includes the contract address. Copy that address into `frontend/.env`:
 
 ```dotenv
@@ -205,7 +207,8 @@ Run these commands from the repository root unless stated otherwise.
 | `npm run compile` | Compile Solidity contracts |
 | `npm run test` | Run contract tests |
 | `npm run node` | Start the local Hardhat blockchain |
-| `npm run deploy:local` | Deploy to the running local blockchain |
+| `npm run deploy:local` | Deploy to the running local blockchain and export the ABI/address to the frontend |
+| `npm run export:frontend` | Re-export the ABI/address from the current local deployment |
 | `npm run frontend:dev` | Start the frontend development server |
 | `npm run frontend:build` | Create a production frontend build |
 | `npm run check` | Compile, test, and build everything |
@@ -305,6 +308,18 @@ npm run deploy:local
 ```
 
 Confirm that the local blockchain is still running in another terminal.
+
+### `export:frontend` reports "No contract code at …"
+
+The recorded deployment belongs to an earlier run of the local node. Run `npm run deploy:local` again against the running node; it redeploys and re-exports.
+
+### Deployment reports a missing `initialAdmin` parameter
+
+The Ignition module has no default administrator, so every deployment must pass a parameters file. `npm run deploy:local` passes `ignition/parameters/localhost.json`. For a public network, copy `ignition/parameters/sepolia.example.json`, replace the zero address with the administrator wallet's address, and pass it with `--parameters`.
+
+### npm scripts fail on Windows with "'…' is not recognized" or "Cannot find module"
+
+The repository path probably contains `&` (for example `Blockchain & Cyber Security`). Windows `cmd.exe`, which npm uses for scripts, treats `&` as a command separator. Move or rename the folder so its path contains no `&`, then run the command again.
 
 ### Frontend changes are not visible
 

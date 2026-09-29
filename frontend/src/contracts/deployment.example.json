@@ -2,6 +2,7 @@
   "chainId": 31337,
   "contractName": "ModelRegistry",
   "address": "",
+  "transactionHash": null,
+  "blockNumber": null,
   "deployedAt": null
 }
-
