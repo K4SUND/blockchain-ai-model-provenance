@@ -118,9 +118,195 @@ button:disabled {
   min-height: 150px;
 }
 
+/* ---------- Forms (UI-01) ---------- */
+
+.form {
+  margin-top: 1.25rem;
+}
+
+.form fieldset {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.form fieldset:disabled {
+  opacity: 0.6;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.form-inline fieldset {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  align-items: start;
+}
+
+.form-inline button {
+  margin-top: 1.6rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.field label {
+  font-weight: 700;
+}
+
+.optional {
+  color: #a9bed3;
+  font-weight: 400;
+}
+
+.field-hint {
+  margin: 0;
+  color: #a9bed3;
+  font-size: 0.875rem;
+}
+
+.field input,
+.field textarea {
+  width: 100%;
+  min-height: 2.75rem;
+  border: 1px solid rgb(148 180 207 / 45%);
+  border-radius: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  color: #e8eef9;
+  background: #0b1a2b;
+  font: inherit;
+}
+
+.field textarea {
+  resize: vertical;
+}
+
+.field input[type="file"] {
+  padding: 0.45rem;
+  cursor: pointer;
+}
+
+.field input[type="file"]::file-selector-button {
+  margin-right: 0.75rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.4rem 0.8rem;
+  color: #08121d;
+  background: #cfe8f7;
+  font: inherit;
+  font-weight: 700;
+}
+
+.field-invalid input,
+.field-invalid textarea {
+  border-color: #fb7185;
+}
+
+.field-error {
+  margin: 0;
+  color: #fda4af;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.field-error::before {
+  content: "\26A0\FE0E  ";
+}
+
+button,
+.field input,
+.field textarea {
+  min-height: 2.75rem;
+}
+
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+button:focus-visible,
+.field input:focus-visible,
+.field textarea:focus-visible {
+  outline: 3px solid #fbbf24;
+  outline-offset: 2px;
+}
+
+.form button[type="submit"] {
+  justify-self: start;
+}
+
+.button-danger {
+  border-color: #e11d48;
+  color: #fff;
+  background: #be123c;
+}
+
+.notice {
+  margin: 1rem 0 0;
+  border-left: 4px solid #7dd3fc;
+  border-radius: 0.4rem;
+  padding: 0.6rem 0.8rem;
+  color: #cfe8f7;
+  background: rgb(125 211 252 / 10%);
+}
+
+.notice-warning {
+  border-left-color: #fbbf24;
+  background: rgb(251 191 36 / 10%);
+}
+
+.empty-state {
+  margin: 1rem 0 0;
+  border: 1px dashed rgb(148 180 207 / 35%);
+  border-radius: 0.6rem;
+  padding: 1rem;
+  color: #a9bed3;
+  text-align: center;
+}
+
+.revoke-form {
+  border-top: 1px solid rgb(148 180 207 / 22%);
+  padding-top: 1.25rem;
+}
+
+.revoke-form legend {
+  margin-bottom: 0.25rem;
+  color: #fda4af;
+  font-weight: 800;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 @media (max-width: 720px) {
   .app-shell {
     padding-top: 2rem;
+  }
+
+  .field-row,
+  .form-inline fieldset {
+    grid-template-columns: 1fr;
+  }
+
+  .form-inline button {
+    margin-top: 0;
+  }
+
+  .form button[type="submit"] {
+    justify-self: stretch;
   }
 
   .panel {

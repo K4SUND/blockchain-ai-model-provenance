@@ -1,0 +1,4 @@
+# Hashed demo files must keep identical bytes on every machine.
+# Line-ending conversion would change their SHA-256 values.
+sample-models/*.json -text
+sample-models/*.onnx binary

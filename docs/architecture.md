@@ -42,10 +42,10 @@ ModelGuard verifies integrity relative to a publisher's registered record. It do
 | Authorization | OpenZeppelin `AccessControl` | Contract-enforced administrator and publisher roles |
 | Deletion | Not permitted | Registration and revocation history must remain auditable |
 | First network | Local Hardhat | Fast, free, repeatable development and demonstration |
+| Demo model | ONNX Model Zoo `mnist-12.onnx` (MIT, 26 KB) | Small, real, redistributable artifact; see `sample-models/README.md` |
 
 ## Open decisions
 
-- Which small, redistributable model will be used for the demonstration?
 - Should metadata be a normal URL, an IPFS URI, or an optional text field for the MVP?
 - May only the original publisher revoke, or may an administrator also perform emergency revocation? The current proposal allows both.
 - Should the first public deployment use Sepolia, or is the local demonstration sufficient?

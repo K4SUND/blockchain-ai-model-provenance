@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "1.0",
+  "modelName": "DemoClassifier",
+  "modelVersion": "1.0.0",
+  "format": "ONNX (opset 12)",
+  "artifactFile": "mnist-12-original.onnx",
+  "artifactSha256": "0x5c688690f8bacf667d4c2074af5ad0646ca328d7ab03eccf944a65b320171bdd",
+  "publisher": "ModelGuard demonstration team",
+  "originalCreator": "Microsoft CNTK tutorial model, published in the ONNX Model Zoo",
+  "sourceUrl": "https://github.com/onnx/models/tree/main/validated/vision/classification/mnist",
+  "license": "MIT",
+  "dataset": {
+    "name": "MNIST handwritten digits",
+    "version": "LeCun et al. 1998"
+  },
+  "task": "Handwritten digit classification (10 classes), input 1x1x28x28",
+  "notes": "Existing model artifact used only for the ModelGuard demonstration. The ModelGuard team did not train this model."
+}
