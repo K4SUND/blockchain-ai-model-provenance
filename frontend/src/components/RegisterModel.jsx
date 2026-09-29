@@ -1,43 +1,33 @@
-// /**
-//  * TODO(FE-04): Publisher-only registration form.
-//  *
-//  * Required fields:
-//  * - model name and semantic version;
-//  * - local model file;
-//  * - local provenance-manifest JSON file; and
-//  * - optional public metadata URI.
-//  *
-//  * Hash both files locally before sending only their hashes and metadata to the
-//  * smart contract. Never upload a selected model as part of this component.
-//  */
-// export default function RegisterModel() {
-//   return (
-//     <section className="card" aria-labelledby="register-title">
-//       <p className="section-label">Publisher action</p>
-//       <h2 id="register-title">Register a model</h2>
-//       <p>
-//         Authorized publishers will create immutable records for new model
-//         versions here.
-//       </p>
-//       <ul className="todo-list">
-//         <li>Collect release metadata</li>
-//         <li>Hash model and manifest locally</li>
-//         <li>Confirm and submit the transaction</li>
-//       </ul>
-//     </section>
-//   );
-// }
-
+/**
+ * FE-04: Publisher-only registration form.
+ *
+ * Required fields:
+ * - model name and version;
+ * - local model file;
+ * - local provenance-manifest JSON file; and
+ * - optional public metadata URI.
+ *
+ * Both files are hashed locally using SHA-256.
+ * Only the hashes and metadata are sent to the smart contract.
+ *
+ * The selected files are never uploaded by this component.
+ */
 
 import { useState } from "react";
-import { registerModel } from "../services/modelRegistry";
+import { registerModel } from "../services/modelRegistry.js";
+import { hashFile } from "../utils/hashFile.js";
 
 export default function RegisterModel() {
   const [modelName, setModelName] = useState("");
   const [version, setVersion] = useState("");
+
+  const [modelFile, setModelFile] = useState(null);
+  const [provenanceFile, setProvenanceFile] = useState(null);
+
+  const [metadataURI, setMetadataURI] = useState("");
+
   const [modelHash, setModelHash] = useState("");
   const [provenanceHash, setProvenanceHash] = useState("");
-  const [metadataURI, setMetadataURI] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -49,11 +39,53 @@ export default function RegisterModel() {
     setError("");
 
     try {
+      if (!modelName.trim()) {
+        throw new Error("Model name is required.");
+      }
+
+      if (!version.trim()) {
+        throw new Error("Version is required.");
+      }
+
+      if (!modelFile) {
+        throw new Error("Please select the model file.");
+      }
+
+      if (!provenanceFile) {
+        throw new Error(
+          "Please select the provenance-manifest JSON file."
+        );
+      }
+
+      if (
+        provenanceFile.type !== "application/json" &&
+        !provenanceFile.name.toLowerCase().endsWith(".json")
+      ) {
+        throw new Error(
+          "The provenance file must be a JSON file."
+        );
+      }
+
+      // Hash both files locally.
+      // The files are never uploaded.
+      const calculatedModelHash = await hashFile(modelFile);
+
+      const calculatedProvenanceHash =
+        await hashFile(provenanceFile);
+
+      setModelHash(calculatedModelHash);
+      setProvenanceHash(calculatedProvenanceHash);
+
+      setMessage(
+        "Files hashed locally. Waiting for wallet confirmation..."
+      );
+
+      // Send only hashes and metadata to the smart contract.
       const tx = await registerModel({
         modelName: modelName.trim(),
         version: version.trim(),
-        modelHash: modelHash.trim(),
-        provenanceHash: provenanceHash.trim(),
+        modelHash: calculatedModelHash,
+        provenanceHash: calculatedProvenanceHash,
         metadataURI: metadataURI.trim(),
       });
 
@@ -67,27 +99,59 @@ export default function RegisterModel() {
         `Model registered successfully. Transaction: ${tx.hash}`
       );
     } catch (err) {
-  console.error("REGISTER ERROR:", err);
-  console.error("ERROR DATA:", err?.data);
-  console.error("ERROR INFO:", err?.info);
-  console.error("ERROR RECEIPT:", err?.receipt);
+      console.error("REGISTER ERROR:", err);
+      console.error("ERROR DATA:", err?.data);
+      console.error("ERROR INFO:", err?.info);
+      console.error("ERROR RECEIPT:", err?.receipt);
 
-  setError(
-    err?.shortMessage ||
-    err?.reason ||
-    err?.message ||
-    "Failed to register the model."
-  );
-} finally {
+      if (err?.code === 4001) {
+        setError("Transaction rejected by the wallet.");
+      } else {
+        setError(
+          err?.shortMessage ||
+            err?.reason ||
+            err?.message ||
+            "Failed to register the model."
+        );
+      }
+    } finally {
       setLoading(false);
+    }
+  }
+
+  function handleClear() {
+    setModelName("");
+    setVersion("");
+    setModelFile(null);
+    setProvenanceFile(null);
+    setMetadataURI("");
+    setModelHash("");
+    setProvenanceHash("");
+    setMessage("");
+    setError("");
+
+    const modelInput = document.getElementById(
+      "register-model-file"
+    );
+
+    const provenanceInput = document.getElementById(
+      "register-provenance-file"
+    );
+
+    if (modelInput) {
+      modelInput.value = "";
+    }
+
+    if (provenanceInput) {
+      provenanceInput.value = "";
     }
   }
 
   const canRegister =
     modelName.trim() &&
     version.trim() &&
-    modelHash.trim() &&
-    provenanceHash.trim() &&
+    modelFile &&
+    provenanceFile &&
     !loading;
 
   return (
@@ -116,6 +180,10 @@ export default function RegisterModel() {
           font-size: 14px;
         }
 
+        .register-field input[type="file"] {
+          padding: 9px;
+        }
+
         .register-field small {
           display: block;
           margin-top: 5px;
@@ -134,6 +202,36 @@ export default function RegisterModel() {
         .register-button:disabled {
           opacity: 0.5;
           cursor: not-allowed;
+        }
+
+        .register-clear-button {
+          margin-left: 10px;
+          padding: 11px 20px;
+          border: 1px solid #ccc;
+          border-radius: 6px;
+          cursor: pointer;
+          font-weight: 600;
+          background: transparent;
+        }
+
+        .register-clear-button:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .register-hash {
+          margin-top: 10px;
+          padding: 12px;
+          border: 1px solid #ddd;
+          border-radius: 6px;
+          background: rgba(0, 0, 0, 0.03);
+          overflow-wrap: anywhere;
+        }
+
+        .register-hash code {
+          display: block;
+          margin-top: 5px;
+          word-break: break-all;
         }
 
         .register-message {
@@ -186,6 +284,7 @@ export default function RegisterModel() {
                 setModelName(e.target.value)
               }
               placeholder="Example: TestModel"
+              disabled={loading}
             />
           </div>
 
@@ -202,48 +301,65 @@ export default function RegisterModel() {
                 setVersion(e.target.value)
               }
               placeholder="Example: 1.0"
+              disabled={loading}
             />
           </div>
 
           <div className="register-field">
-            <label htmlFor="register-model-hash">
-              Model hash
+            <label htmlFor="register-model-file">
+              Model file
             </label>
 
             <input
-              id="register-model-hash"
-              type="text"
-              value={modelHash}
+              id="register-model-file"
+              type="file"
               onChange={(e) =>
-                setModelHash(e.target.value)
+                setModelFile(
+                  e.target.files?.[0] || null
+                )
               }
-              placeholder="0x + 64 hexadecimal characters"
+              disabled={loading}
             />
 
             <small>
-              32-byte SHA-256 hash of the model.
+              The model is hashed locally in your browser.
+              It is not uploaded.
             </small>
+
+            {modelFile && (
+              <small>
+                Selected: {modelFile.name}
+              </small>
+            )}
           </div>
 
           <div className="register-field">
-            <label htmlFor="register-provenance-hash">
-              Provenance hash
+            <label htmlFor="register-provenance-file">
+              Provenance manifest JSON
             </label>
 
             <input
-              id="register-provenance-hash"
-              type="text"
-              value={provenanceHash}
+              id="register-provenance-file"
+              type="file"
+              accept=".json,application/json"
               onChange={(e) =>
-                setProvenanceHash(e.target.value)
+                setProvenanceFile(
+                  e.target.files?.[0] || null
+                )
               }
-              placeholder="0x + 64 hexadecimal characters"
+              disabled={loading}
             />
 
             <small>
-              32-byte hash representing the model
-              provenance/manifest.
+              The provenance manifest is hashed locally.
+              It is not uploaded.
             </small>
+
+            {provenanceFile && (
+              <small>
+                Selected: {provenanceFile.name}
+              </small>
+            )}
           </div>
 
           <div className="register-field">
@@ -259,8 +375,27 @@ export default function RegisterModel() {
                 setMetadataURI(e.target.value)
               }
               placeholder="ipfs://... or https://..."
+              disabled={loading}
             />
+
+            <small>
+              Optional public metadata location.
+            </small>
           </div>
+
+          {modelHash && (
+            <div className="register-hash">
+              <strong>Model SHA-256 hash</strong>
+              <code>{modelHash}</code>
+            </div>
+          )}
+
+          {provenanceHash && (
+            <div className="register-hash">
+              <strong>Provenance SHA-256 hash</strong>
+              <code>{provenanceHash}</code>
+            </div>
+          )}
 
           <button
             className="register-button"
@@ -271,6 +406,15 @@ export default function RegisterModel() {
             {loading
               ? "Registering..."
               : "Register Model"}
+          </button>
+
+          <button
+            className="register-clear-button"
+            type="button"
+            onClick={handleClear}
+            disabled={loading}
+          >
+            Clear
           </button>
 
           {message && (
@@ -284,12 +428,13 @@ export default function RegisterModel() {
               className="register-error"
               role="alert"
             >
-              <strong>Registration failed</strong>
+              <strong>
+                Registration failed
+              </strong>
               <br />
               {error}
             </div>
           )}
-
         </div>
       </section>
     </>
