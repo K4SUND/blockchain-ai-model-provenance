@@ -1,177 +1,442 @@
-import { useRef, useState } from "react";
-import FormField from "./FormField.jsx";
-import {
-  focusFirstInvalid,
-  hasErrors,
-  MAX_NAME_LENGTH,
-  validateFile,
-  validateManifest,
-  validateMetadataUri,
-  validateModelName,
-  validateVersion,
-} from "./formValidation.js";
-
-const EMPTY_FIELDS = { modelName: "", version: "", metadataURI: "" };
-
 /**
- * Publisher-only registration form (UI-01).
+ * FE-04: Publisher-only registration form.
  *
- * This component only collects and validates input. Hashing and the
- * transaction belong to the integration layer (FE-04), which passes
- * `onSubmit({ modelName, version, modelFile, manifestFile, metadataURI })`.
- * Never upload a selected model as part of this component.
+ * Required fields:
+ * - model name and version;
+ * - local model file;
+ * - local provenance-manifest JSON file; and
+ * - optional public metadata URI.
  *
- * @param {object} props
- * @param {(input: object) => void} [props.onSubmit] registration handler; the
- *        form is disabled until one is supplied
- * @param {boolean} [props.canPublish=true] false when the wallet lacks PUBLISHER_ROLE
- * @param {boolean} [props.busy=false] true while hashing or a transaction is pending
+ * Both files are hashed locally using SHA-256.
+ * Only the hashes and metadata are sent to the smart contract.
+ *
+ * The selected files are never uploaded by this component.
  */
-export default function RegisterModel({
-  onSubmit,
-  canPublish = true,
-  busy = false,
-}) {
-  const formRef = useRef(null);
-  const [fields, setFields] = useState(EMPTY_FIELDS);
+
+import { useState } from "react";
+import { registerModel } from "../services/modelRegistry.js";
+import { hashFile } from "../utils/hashFile.js";
+
+export default function RegisterModel() {
+  const [modelName, setModelName] = useState("");
+  const [version, setVersion] = useState("");
+
   const [modelFile, setModelFile] = useState(null);
-  const [manifestFile, setManifestFile] = useState(null);
-  const [errors, setErrors] = useState({});
+  const [provenanceFile, setProvenanceFile] = useState(null);
 
-  const isConnected = typeof onSubmit === "function";
-  const disabled = !isConnected || !canPublish || busy;
+  const [metadataURI, setMetadataURI] = useState("");
 
-  function updateField(event) {
-    const { name, value } = event.target;
-    setFields((current) => ({ ...current, [name]: value }));
-    if (errors[name]) setErrors((current) => ({ ...current, [name]: "" }));
+  const [modelHash, setModelHash] = useState("");
+  const [provenanceHash, setProvenanceHash] = useState("");
+
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  async function handleRegister() {
+    setLoading(true);
+    setMessage("");
+    setError("");
+
+    try {
+      if (!modelName.trim()) {
+        throw new Error("Model name is required.");
+      }
+
+      if (!version.trim()) {
+        throw new Error("Version is required.");
+      }
+
+      if (!modelFile) {
+        throw new Error("Please select the model file.");
+      }
+
+      if (!provenanceFile) {
+        throw new Error(
+          "Please select the provenance-manifest JSON file."
+        );
+      }
+
+      if (
+        provenanceFile.type !== "application/json" &&
+        !provenanceFile.name.toLowerCase().endsWith(".json")
+      ) {
+        throw new Error(
+          "The provenance file must be a JSON file."
+        );
+      }
+
+      // Hash both files locally.
+      // The files are never uploaded.
+      const calculatedModelHash = await hashFile(modelFile);
+
+      const calculatedProvenanceHash =
+        await hashFile(provenanceFile);
+
+      setModelHash(calculatedModelHash);
+      setProvenanceHash(calculatedProvenanceHash);
+
+      setMessage(
+        "Files hashed locally. Waiting for wallet confirmation..."
+      );
+
+      // Send only hashes and metadata to the smart contract.
+      const tx = await registerModel({
+        modelName: modelName.trim(),
+        version: version.trim(),
+        modelHash: calculatedModelHash,
+        provenanceHash: calculatedProvenanceHash,
+        metadataURI: metadataURI.trim(),
+      });
+
+      setMessage(
+        `Transaction submitted: ${tx.hash}`
+      );
+
+      await tx.wait();
+
+      setMessage(
+        `Model registered successfully. Transaction: ${tx.hash}`
+      );
+    } catch (err) {
+      console.error("REGISTER ERROR:", err);
+      console.error("ERROR DATA:", err?.data);
+      console.error("ERROR INFO:", err?.info);
+      console.error("ERROR RECEIPT:", err?.receipt);
+
+      if (err?.code === 4001) {
+        setError("Transaction rejected by the wallet.");
+      } else {
+        setError(
+          err?.shortMessage ||
+            err?.reason ||
+            err?.message ||
+            "Failed to register the model."
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function handleSubmit(event) {
-    event.preventDefault();
-    const nextErrors = {
-      modelName: validateModelName(fields.modelName),
-      version: validateVersion(fields.version),
-      modelFile: validateFile(modelFile, "model file"),
-      manifestFile: validateManifest(manifestFile),
-      metadataURI: validateMetadataUri(fields.metadataURI),
-    };
-    setErrors(nextErrors);
+  function handleClear() {
+    setModelName("");
+    setVersion("");
+    setModelFile(null);
+    setProvenanceFile(null);
+    setMetadataURI("");
+    setModelHash("");
+    setProvenanceHash("");
+    setMessage("");
+    setError("");
 
-    if (hasErrors(nextErrors)) {
-      // Wait for React to render aria-invalid before moving focus.
-      requestAnimationFrame(() => focusFirstInvalid(formRef.current));
-      return;
+    const modelInput = document.getElementById(
+      "register-model-file"
+    );
+
+    const provenanceInput = document.getElementById(
+      "register-provenance-file"
+    );
+
+    if (modelInput) {
+      modelInput.value = "";
     }
 
-    onSubmit({
-      modelName: fields.modelName.trim(),
-      version: fields.version.trim(),
-      modelFile,
-      manifestFile,
-      metadataURI: fields.metadataURI.trim(),
-    });
+    if (provenanceInput) {
+      provenanceInput.value = "";
+    }
   }
 
+  const canRegister =
+    modelName.trim() &&
+    version.trim() &&
+    modelFile &&
+    provenanceFile &&
+    !loading;
+
   return (
-    <section className="card" aria-labelledby="register-title">
-      <p className="section-label">Publisher action</p>
-      <h2 id="register-title">Register a model</h2>
-      <p>
-        Create a permanent blockchain record for a new model version. Files are
-        hashed in your browser and are never uploaded.
-      </p>
+    <>
+      <style>{`
+        .register-form {
+          margin-top: 20px;
+        }
 
-      {!isConnected && (
-        <p className="notice" role="status">
-          Registration becomes available once the wallet integration is
-          connected.
+        .register-field {
+          margin-bottom: 18px;
+        }
+
+        .register-field label {
+          display: block;
+          margin-bottom: 7px;
+          font-weight: 600;
+        }
+
+        .register-field input {
+          width: 100%;
+          box-sizing: border-box;
+          padding: 11px 13px;
+          border: 1px solid #ccc;
+          border-radius: 6px;
+          font-size: 14px;
+        }
+
+        .register-field input[type="file"] {
+          padding: 9px;
+        }
+
+        .register-field small {
+          display: block;
+          margin-top: 5px;
+          color: #666;
+        }
+
+        .register-button {
+          margin-top: 5px;
+          padding: 11px 20px;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          font-weight: 600;
+        }
+
+        .register-button:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .register-clear-button {
+          margin-left: 10px;
+          padding: 11px 20px;
+          border: 1px solid #ccc;
+          border-radius: 6px;
+          cursor: pointer;
+          font-weight: 600;
+          background: transparent;
+        }
+
+        .register-clear-button:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .register-hash {
+          margin-top: 10px;
+          padding: 12px;
+          border: 1px solid #ddd;
+          border-radius: 6px;
+          background: rgba(0, 0, 0, 0.03);
+          overflow-wrap: anywhere;
+        }
+
+        .register-hash code {
+          display: block;
+          margin-top: 5px;
+          word-break: break-all;
+        }
+
+        .register-message {
+          margin-top: 20px;
+          padding: 14px;
+          border: 1px solid #2e7d32;
+          border-radius: 8px;
+          overflow-wrap: anywhere;
+        }
+
+        .register-error {
+          margin-top: 20px;
+          padding: 14px;
+          border: 1px solid #d32f2f;
+          border-radius: 8px;
+          color: #b71c1c;
+          overflow-wrap: anywhere;
+        }
+      `}</style>
+
+      <section
+        className="card"
+        aria-labelledby="register-title"
+      >
+        <p className="section-label">
+          Publisher action
         </p>
-      )}
-      {isConnected && !canPublish && (
-        <p className="notice notice-warning" role="status">
-          The connected wallet is not an authorized publisher. Switch to a
-          publisher wallet to register models.
+
+        <h2 id="register-title">
+          Register a model
+        </h2>
+
+        <p className="muted">
+          Create an immutable blockchain record for a
+          new AI model version.
         </p>
-      )}
 
-      <form ref={formRef} className="form" onSubmit={handleSubmit} noValidate>
-        <fieldset disabled={disabled}>
-          <legend className="visually-hidden">Model release details</legend>
+        <div className="register-form">
 
-          <div className="field-row">
-            <FormField
-              label="Model name"
-              hint="Case-sensitive, e.g. DemoClassifier"
-              error={errors.modelName}
-              name="modelName"
+          <div className="register-field">
+            <label htmlFor="register-model-name">
+              Model name
+            </label>
+
+            <input
+              id="register-model-name"
               type="text"
-              autoComplete="off"
-              maxLength={MAX_NAME_LENGTH}
-              required
-              value={fields.modelName}
-              onChange={updateField}
-            />
-            <FormField
-              label="Version"
-              hint="Semantic version, e.g. 1.0.0"
-              error={errors.version}
-              name="version"
-              type="text"
-              autoComplete="off"
-              inputMode="decimal"
-              required
-              value={fields.version}
-              onChange={updateField}
+              value={modelName}
+              onChange={(e) =>
+                setModelName(e.target.value)
+              }
+              placeholder="Example: TestModel"
+              disabled={loading}
             />
           </div>
 
-          <FormField
-            label="Model file"
-            hint="The exact artifact to publish (ONNX, TFLite, PyTorch...)"
-            error={errors.modelFile}
-            name="modelFile"
-            type="file"
-            required
-            onChange={(event) => {
-              setModelFile(event.target.files?.[0] ?? null);
-              setErrors((current) => ({ ...current, modelFile: "" }));
-            }}
-          />
+          <div className="register-field">
+            <label htmlFor="register-version">
+              Version
+            </label>
 
-          <FormField
-            label="Provenance manifest"
-            hint="JSON file describing source, licence, and dataset"
-            error={errors.manifestFile}
-            name="manifestFile"
-            type="file"
-            accept=".json,application/json"
-            required
-            onChange={(event) => {
-              setManifestFile(event.target.files?.[0] ?? null);
-              setErrors((current) => ({ ...current, manifestFile: "" }));
-            }}
-          />
+            <input
+              id="register-version"
+              type="text"
+              value={version}
+              onChange={(e) =>
+                setVersion(e.target.value)
+              }
+              placeholder="Example: 1.0"
+              disabled={loading}
+            />
+          </div>
 
-          <FormField
-            label="Metadata URI"
-            optional
-            hint="Public link to release notes or the manifest"
-            error={errors.metadataURI}
-            name="metadataURI"
-            type="url"
-            inputMode="url"
-            autoComplete="off"
-            placeholder="https://..."
-            value={fields.metadataURI}
-            onChange={updateField}
-          />
+          <div className="register-field">
+            <label htmlFor="register-model-file">
+              Model file
+            </label>
 
-          <button type="submit">
-            {busy ? "Registering..." : "Hash files and register"}
+            <input
+              id="register-model-file"
+              type="file"
+              onChange={(e) =>
+                setModelFile(
+                  e.target.files?.[0] || null
+                )
+              }
+              disabled={loading}
+            />
+
+            <small>
+              The model is hashed locally in your browser.
+              It is not uploaded.
+            </small>
+
+            {modelFile && (
+              <small>
+                Selected: {modelFile.name}
+              </small>
+            )}
+          </div>
+
+          <div className="register-field">
+            <label htmlFor="register-provenance-file">
+              Provenance manifest JSON
+            </label>
+
+            <input
+              id="register-provenance-file"
+              type="file"
+              accept=".json,application/json"
+              onChange={(e) =>
+                setProvenanceFile(
+                  e.target.files?.[0] || null
+                )
+              }
+              disabled={loading}
+            />
+
+            <small>
+              The provenance manifest is hashed locally.
+              It is not uploaded.
+            </small>
+
+            {provenanceFile && (
+              <small>
+                Selected: {provenanceFile.name}
+              </small>
+            )}
+          </div>
+
+          <div className="register-field">
+            <label htmlFor="register-metadata">
+              Metadata URI
+            </label>
+
+            <input
+              id="register-metadata"
+              type="text"
+              value={metadataURI}
+              onChange={(e) =>
+                setMetadataURI(e.target.value)
+              }
+              placeholder="ipfs://... or https://..."
+              disabled={loading}
+            />
+
+            <small>
+              Optional public metadata location.
+            </small>
+          </div>
+
+          {modelHash && (
+            <div className="register-hash">
+              <strong>Model SHA-256 hash</strong>
+              <code>{modelHash}</code>
+            </div>
+          )}
+
+          {provenanceHash && (
+            <div className="register-hash">
+              <strong>Provenance SHA-256 hash</strong>
+              <code>{provenanceHash}</code>
+            </div>
+          )}
+
+          <button
+            className="register-button"
+            type="button"
+            onClick={handleRegister}
+            disabled={!canRegister}
+          >
+            {loading
+              ? "Registering..."
+              : "Register Model"}
           </button>
-        </fieldset>
-      </form>
-    </section>
+
+          <button
+            className="register-clear-button"
+            type="button"
+            onClick={handleClear}
+            disabled={loading}
+          >
+            Clear
+          </button>
+
+          {message && (
+            <div className="register-message">
+              {message}
+            </div>
+          )}
+
+          {error && (
+            <div
+              className="register-error"
+              role="alert"
+            >
+              <strong>
+                Registration failed
+              </strong>
+              <br />
+              {error}
+            </div>
+          )}
+        </div>
+      </section>
+    </>
   );
 }
