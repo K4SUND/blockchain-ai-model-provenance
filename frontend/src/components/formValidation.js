@@ -29,6 +29,19 @@ export function validateVersion(value) {
   return "";
 }
 
+/**
+ * Looking up a record needs only a non-empty version: records registered
+ * before SemVer was enforced (for example "1.0") must stay findable.
+ */
+export function validateLookupVersion(value) {
+  const version = value.trim();
+  if (!version) return "Enter the version exactly as it was registered.";
+  if (version.length > MAX_NAME_LENGTH) {
+    return `Use ${MAX_NAME_LENGTH} characters or fewer.`;
+  }
+  return "";
+}
+
 export function validateFile(file, label) {
   if (!file) return `Choose the ${label}.`;
   if (file.size === 0) return `The selected ${label} is empty.`;

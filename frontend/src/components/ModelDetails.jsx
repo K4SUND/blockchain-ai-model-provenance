@@ -1,449 +1,290 @@
-// /**
-//  * TODO(FE-06): Show the complete registry record and audit information.
-//  * Add the revoke action only when the connected signer is allowed to use it.
-//  */
-// export default function ModelDetails() {
-//   return (
-//     <section className="panel details" aria-labelledby="details-title">
-//       <p className="section-label">Registry record</p>
-//       <h2 id="details-title">Model details</h2>
-//       <p className="muted">
-//         Search results, publisher information, hashes, timestamps, and
-//         revocation history will appear here.
-//       </p>
-//     </section>
-//   );
-// }
+/**
+ * FE-06 / UI-01 / UI-03: record lookup and revocation.
+ *
+ * Anyone can load a record. The revoke form appears only for the original
+ * publisher or an administrator; the contract enforces the same rule.
+ */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { getModel, modelExists, revokeModel } from "../services/modelRegistry.js";
+import { describeError, isUserRejection } from "./errorMessages.js";
+import FormField from "./FormField.jsx";
 import {
-  connectWallet,
-  getModel,
-  modelExists,
-  revokeModel,
-  hasRole,
-} from "../services/modelRegistry.js";
+  focusFirstInvalid,
+  hasErrors,
+  MAX_NAME_LENGTH,
+  MAX_REASON_LENGTH,
+  validateLookupVersion,
+  validateModelName,
+  validateReason,
+} from "./formValidation.js";
+import RecordDetails from "./RecordDetails.jsx";
+import TransactionStatus, { BUSY_PHASES, TX_PHASE } from "./TransactionStatus.jsx";
+import WalletNotice from "./WalletNotice.jsx";
 
-const DEFAULT_ADMIN_ROLE = "0x" + "0".repeat(64);
+const IDLE_LOOKUP = { state: "idle" };
+const IDLE_TX = { phase: TX_PHASE.IDLE };
 
-function formatTimestamp(timestamp) {
-  if (!timestamp) {
-    return "—";
-  }
-
-  const seconds = Number(timestamp);
-
-  if (!Number.isFinite(seconds) || seconds <= 0) {
-    return "—";
-  }
-
-  return new Date(seconds * 1000).toLocaleString();
-}
-
-function shortenAddress(address) {
-  if (!address) {
-    return "—";
-  }
-
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
-
-export default function ModelDetails() {
-  const [modelName, setModelName] = useState("");
-  const [version, setVersion] = useState("");
-
-  const [model, setModel] = useState(null);
-  const [walletAddress, setWalletAddress] = useState("");
-
-  const [loading, setLoading] = useState(false);
-  const [revoking, setRevoking] = useState(false);
-
+export default function ModelDetails({ wallet }) {
+  const lookupRef = useRef(null);
+  const revokeRef = useRef(null);
+  const [query, setQuery] = useState({ modelName: "", version: "" });
+  const [lookup, setLookup] = useState(IDLE_LOOKUP);
   const [reason, setReason] = useState("");
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [tx, setTx] = useState(IDLE_TX);
 
-  const [canRevoke, setCanRevoke] = useState(false);
+  const record = lookup.state === "loaded" ? lookup.record : null;
+  const revoking = BUSY_PHASES.includes(tx.phase);
+  const loading = lookup.state === "loading";
 
-  const handleLoadModel = async () => {
-    const trimmedName = modelName.trim();
-    const trimmedVersion = version.trim();
+  const isRecordPublisher =
+    Boolean(record && wallet.address) &&
+    wallet.address.toLowerCase() === String(record.publisher).toLowerCase();
+  const canRevoke =
+    Boolean(record) &&
+    !record.revoked &&
+    Boolean(wallet.address) &&
+    !wallet.wrongNetwork &&
+    (isRecordPublisher || wallet.roles.isAdmin);
 
-    setError("");
-    setMessage("");
-    setModel(null);
-    setCanRevoke(false);
+  function updateQuery(event) {
+    const { name, value } = event.target;
+    setQuery((current) => ({ ...current, [name]: value }));
+    setErrors((current) => ({ ...current, [name]: "" }));
+  }
 
-    if (!trimmedName || !trimmedVersion) {
-      setError("Enter both the model name and version.");
-      return;
-    }
-
-    setLoading(true);
-
+  async function loadRecord(modelName, version) {
+    setLookup({ state: "loading" });
     try {
-      const exists = await modelExists(
-        trimmedName,
-        trimmedVersion
-      );
-
-      if (!exists) {
-        setError(
-          "No record exists for this model name and version."
-        );
+      if (!(await modelExists(modelName, version))) {
+        setLookup({ state: "not-found", modelName, version });
         return;
       }
-
-      const record = await getModel(
-        trimmedName,
-        trimmedVersion
-      );
-
-      setModel(record);
-
-      /*
-       * Revoke permission:
-       * 1. The original publisher can revoke.
-       * 2. The DEFAULT_ADMIN_ROLE can revoke.
-       */
-      try {
-        const wallet = await connectWallet();
-
-        setWalletAddress(wallet.address);
-
-        const isPublisher =
-          wallet.address.toLowerCase() ===
-          String(record.publisher).toLowerCase();
-
-        const isAdministrator = await hasRole(
-          DEFAULT_ADMIN_ROLE,
-          wallet.address
-        );
-
-        setCanRevoke(
-          isPublisher || isAdministrator
-        );
-      } catch {
-        /*
-         * Model details are still readable without a
-         * connected/authorized wallet.
-         */
-        setWalletAddress("");
-        setCanRevoke(false);
-      }
+      setLookup({ state: "loaded", record: await getModel(modelName, version) });
     } catch (err) {
       console.error("LOAD MODEL ERROR:", err);
-
-      setError(
-        err?.shortMessage ||
-          err?.reason ||
-          err?.message ||
-          "Failed to load the model record."
-      );
-    } finally {
-      setLoading(false);
+      setLookup({ state: "error", error: describeError(err, "Failed to load the record.") });
     }
-  };
+  }
 
-  const handleRevoke = async () => {
-    if (!model) {
+  async function handleLookup(event) {
+    event.preventDefault();
+    const nextErrors = {
+      modelName: validateModelName(query.modelName),
+      version: validateLookupVersion(query.version),
+    };
+    setErrors(nextErrors);
+    if (hasErrors(nextErrors)) {
+      requestAnimationFrame(() => focusFirstInvalid(lookupRef.current));
       return;
     }
 
-    const trimmedReason = reason.trim();
+    setReason("");
+    setConfirmed(false);
+    setTx(IDLE_TX);
+    await loadRecord(query.modelName.trim(), query.version.trim());
+  }
 
-    if (!trimmedReason) {
-      setError("Enter a reason before revoking the model.");
+  async function handleRevoke(event) {
+    event.preventDefault();
+    const nextErrors = {
+      reason: validateReason(reason),
+      confirmed: confirmed ? "" : "Tick the box to confirm that revocation is permanent.",
+    };
+    setErrors((current) => ({ ...current, ...nextErrors }));
+    if (hasErrors(nextErrors)) {
+      requestAnimationFrame(() => focusFirstInvalid(revokeRef.current));
       return;
     }
 
-    if (!canRevoke) {
-      setError(
-        "Your connected wallet is not allowed to revoke this model."
-      );
-      return;
-    }
-
-    setError("");
-    setMessage("");
-    setRevoking(true);
-
+    const { modelName, version } = record;
     try {
-      const tx = await revokeModel(
-        model.modelName,
-        model.version,
-        trimmedReason
-      );
+      setTx({ phase: TX_PHASE.SIGNING });
+      const sent = await revokeModel(modelName, version, reason.trim());
 
-      setMessage(
-        "Revocation transaction submitted. Waiting for confirmation..."
-      );
+      setTx({ phase: TX_PHASE.PENDING, txHash: sent.hash });
+      const receipt = await sent.wait();
 
-      await tx.wait();
-
-      /*
-       * Reload the record so the revoked state and
-       * revocation reason are shown from blockchain data.
-       */
-      const updatedModel = await getModel(
-        model.modelName,
-        model.version
-      );
-
-      setModel(updatedModel);
+      setTx({
+        phase: TX_PHASE.SUCCESS,
+        txHash: sent.hash,
+        blockNumber: receipt?.blockNumber,
+        release: `${modelName} ${version}`,
+      });
       setReason("");
+      setConfirmed(false);
 
-      setMessage(
-        "Model successfully revoked. The registry record remains available."
-      );
+      // Reload so the revoked status and reason come from the chain itself.
+      await loadRecord(modelName, version);
     } catch (err) {
       console.error("REVOKE MODEL ERROR:", err);
-
-      if (err?.code === 4001) {
-        setError(
-          "Transaction rejected in the wallet."
-        );
-      } else {
-        setError(
-          err?.shortMessage ||
-            err?.reason ||
-            err?.message ||
-            "Failed to revoke the model."
-        );
-      }
-    } finally {
-      setRevoking(false);
+      setTx((current) => ({
+        ...current,
+        phase: isUserRejection(err) ? TX_PHASE.REJECTED : TX_PHASE.FAILED,
+        error: describeError(err, "Failed to revoke the model."),
+      }));
     }
-  };
+  }
 
-  const handleClear = () => {
-    setModelName("");
-    setVersion("");
-    setModel(null);
-    setWalletAddress("");
+  function handleClear() {
+    setQuery({ modelName: "", version: "" });
+    setLookup(IDLE_LOOKUP);
     setReason("");
-    setError("");
-    setMessage("");
-    setCanRevoke(false);
-  };
+    setConfirmed(false);
+    setErrors({});
+    setTx(IDLE_TX);
+  }
 
   return (
-    <section
-      className="panel details"
-      aria-labelledby="details-title"
-    >
+    <section className="card details" aria-labelledby="details-title">
       <p className="section-label">Registry record</p>
-
       <h2 id="details-title">Model details</h2>
-
       <p className="muted">
-        Load a registered model to inspect its blockchain
-        record and, when authorized, revoke the release.
+        Look up a registered version to see its publisher, hashes,
+        registration time, and revocation status.
       </p>
 
-      <div className="details-form">
-        <label>
-          Model name
-          <input
+      <WalletNotice wallet={wallet} action="look up records" />
+
+      <form ref={lookupRef} className="form form-lookup" onSubmit={handleLookup} noValidate>
+        <fieldset disabled={!wallet.canRead || loading || revoking}>
+          <legend className="visually-hidden">Find a model version</legend>
+          <FormField
+            label="Model name"
+            error={errors.modelName}
+            name="modelName"
             type="text"
-            value={modelName}
-            onChange={(e) => setModelName(e.target.value)}
-            placeholder="e.g. TestModel"
-            disabled={loading || revoking}
+            autoComplete="off"
+            maxLength={MAX_NAME_LENGTH}
+            required
+            value={query.modelName}
+            onChange={updateQuery}
           />
-        </label>
-
-        <label>
-          Version
-          <input
+          <FormField
+            label="Version"
+            error={errors.version}
+            name="version"
             type="text"
-            value={version}
-            onChange={(e) => setVersion(e.target.value)}
-            placeholder="e.g. 1.0"
-            disabled={loading || revoking}
+            autoComplete="off"
+            required
+            value={query.version}
+            onChange={updateQuery}
           />
-        </label>
+          <div className="actions">
+            <button type="submit">{loading ? "Loading…" : "Look up record"}</button>
+            <button type="button" className="button-secondary" onClick={handleClear}>
+              Clear
+            </button>
+          </div>
+        </fieldset>
+      </form>
 
-        <div className="details-actions">
-          <button
-            type="button"
-            onClick={handleLoadModel}
-            disabled={
-              loading ||
-              revoking ||
-              !modelName.trim() ||
-              !version.trim()
-            }
-          >
-            {loading ? "Loading..." : "Load Model"}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleClear}
-            disabled={loading || revoking}
-          >
-            Clear
-          </button>
-        </div>
+      <div aria-live="polite">
+        {lookup.state === "idle" && (
+          <p className="empty-state">
+            No record loaded yet. Enter a model name and version above.
+          </p>
+        )}
+        {loading && (
+          <p className="notice notice-info">
+            <span className="spinner" aria-hidden="true" /> Reading the registry…
+          </p>
+        )}
+        {lookup.state === "not-found" && (
+          <p className="empty-state">
+            No record exists for “{lookup.modelName}” version “{lookup.version}”.
+            Names and versions are case-sensitive.
+          </p>
+        )}
+        {lookup.state === "error" && (
+          <p className="notice notice-error" role="alert">
+            {lookup.error}
+          </p>
+        )}
+        {record && <RecordDetails record={record} />}
       </div>
 
-      {error && (
-        <div className="status status-error" role="alert">
-          <strong>Error</strong>
-          <p>{error}</p>
-        </div>
-      )}
-
-      {message && (
-        <div className="status status-success" role="status">
-          {message}
-        </div>
-      )}
-
-      {model && (
-        <div className="model-record">
-          <div className="record-header">
-            <div>
-              <p className="section-label">Blockchain record</p>
-              <h3>
-                {model.modelName} — {model.version}
-              </h3>
-            </div>
-
-            <span
-              className={
-                model.revoked
-                  ? "record-status revoked"
-                  : "record-status active"
-              }
+      {canRevoke && (
+        <form ref={revokeRef} className="form revoke-form" onSubmit={handleRevoke} noValidate>
+          <fieldset disabled={revoking}>
+            <legend>Revoke this version</legend>
+            <p className="field-hint">
+              Your wallet is {isRecordPublisher ? "the original publisher" : "an administrator"}.
+              Revocation is permanent: the record stays visible but is marked as no
+              longer trusted.
+            </p>
+            <FormField
+              label="Reason"
+              hint="Stored publicly on-chain, e.g. Weights found to be compromised"
+              error={errors.reason}
             >
-              {model.revoked ? "Revoked" : "Active"}
-            </span>
-          </div>
-
-          <div className="record-grid">
-            <div>
-              <span>Model Name</span>
-              <strong>{model.modelName}</strong>
-            </div>
-
-            <div>
-              <span>Version</span>
-              <strong>{model.version}</strong>
-            </div>
-
-            <div>
-              <span>Model Hash</span>
-              <code>{model.modelHash}</code>
-            </div>
-
-            <div>
-              <span>Provenance Hash</span>
-              <code>{model.provenanceHash}</code>
-            </div>
-
-            <div>
-              <span>Metadata URI</span>
-              <strong>
-                {model.metadataURI || "—"}
-              </strong>
-            </div>
-
-            <div>
-              <span>Publisher</span>
-              <code>
-                {model.publisher}
-              </code>
-            </div>
-
-            <div>
-              <span>Registered At</span>
-              <strong>
-                {formatTimestamp(model.registeredAt)}
-              </strong>
-            </div>
-
-            <div>
-              <span>Current Wallet</span>
-              <code>
-                {walletAddress
-                  ? shortenAddress(walletAddress)
-                  : "Not connected"}
-              </code>
-            </div>
-          </div>
-
-          {model.revoked && (
-            <div className="revocation-box">
-              <p className="section-label">
-                Revocation information
-              </p>
-
-              <p>
-                <strong>Status:</strong> This model release
-                has been revoked.
-              </p>
-
-              <p>
-                <strong>Reason:</strong>{" "}
-                {model.revocationReason || "—"}
-              </p>
-            </div>
-          )}
-
-          {!model.revoked && canRevoke && (
-            <div className="revoke-box">
-              <p className="section-label">
-                Authorized action
-              </p>
-
-              <h3>Revoke model</h3>
-
-              <p className="muted">
-                Your connected wallet is authorized to revoke
-                this model. Revocation is permanent and the
-                record will remain visible on-chain.
-              </p>
-
-              <label>
-                Revocation reason
+              {(controlProps) => (
                 <textarea
+                  {...controlProps}
+                  name="reason"
+                  rows={3}
+                  maxLength={MAX_REASON_LENGTH}
+                  required
                   value={reason}
-                  onChange={(e) =>
-                    setReason(e.target.value)
-                  }
-                  placeholder="Explain why this model release is being revoked."
-                  rows={4}
-                  disabled={revoking}
+                  onChange={(event) => {
+                    setReason(event.target.value);
+                    setErrors((current) => ({ ...current, reason: "" }));
+                  }}
                 />
+              )}
+            </FormField>
+            <div className={`checkbox${errors.confirmed ? " field-invalid" : ""}`}>
+              <input
+                id="revoke-confirm"
+                type="checkbox"
+                checked={confirmed}
+                aria-invalid={errors.confirmed ? "true" : "false"}
+                aria-describedby={errors.confirmed ? "revoke-confirm-error" : undefined}
+                onChange={(event) => {
+                  setConfirmed(event.target.checked);
+                  setErrors((current) => ({ ...current, confirmed: "" }));
+                }}
+              />
+              <label htmlFor="revoke-confirm">
+                I understand that {record.modelName} {record.version} will be
+                permanently marked as revoked.
               </label>
-
-              <button
-                type="button"
-                onClick={handleRevoke}
-                disabled={
-                  revoking ||
-                  !reason.trim()
-                }
-              >
-                {revoking
-                  ? "Revoking..."
-                  : "Revoke Model"}
+            </div>
+            {errors.confirmed && (
+              <p id="revoke-confirm-error" className="field-error">
+                {errors.confirmed}
+              </p>
+            )}
+            <div className="actions">
+              <button type="submit" className="button-danger">
+                {revoking ? "Revoking…" : "Revoke version"}
               </button>
             </div>
-          )}
-
-          {!model.revoked &&
-            walletAddress &&
-            !canRevoke && (
-              <div className="status status-info">
-                The connected wallet is not the original
-                publisher and does not have administrator
-                permission, so the revoke action is hidden.
-              </div>
-            )}
-        </div>
+          </fieldset>
+        </form>
       )}
+
+      {record && !record.revoked && !canRevoke && tx.phase === TX_PHASE.IDLE && (
+        <p className="notice notice-info">
+          {wallet.address
+            ? "The connected wallet is neither this version's publisher nor an administrator, so it can't revoke it."
+            : "To revoke this version, connect the wallet that registered it or an administrator wallet."}
+        </p>
+      )}
+
+      <TransactionStatus
+        phase={tx.phase}
+        txHash={tx.txHash}
+        blockNumber={tx.blockNumber}
+        text={{
+          [TX_PHASE.SUCCESS]: tx.release
+            ? `${tx.release} is now revoked. Its record stays on-chain for auditing.`
+            : undefined,
+          [TX_PHASE.FAILED]: tx.error,
+        }}
+      />
     </section>
   );
 }
