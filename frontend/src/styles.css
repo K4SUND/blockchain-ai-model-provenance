@@ -87,10 +87,19 @@ button:disabled {
   opacity: 0.55;
 }
 
+button:not(:disabled):hover {
+  filter: brightness(1.1);
+}
+
 .button-secondary {
-  border-color: var(--border-strong);
-  color: var(--text);
-  background: transparent;
+  border: 1.5px solid var(--accent);
+  color: #e0f2fe;
+  background: rgb(125 211 252 / 14%);
+}
+
+.button-secondary:not(:disabled):hover {
+  background: rgb(125 211 252 / 24%);
+  filter: none;
 }
 
 .button-danger {
@@ -277,6 +286,11 @@ textarea:focus-visible {
 
 .form fieldset:disabled {
   opacity: 0.6;
+}
+
+/* The fieldset is already faded; fading its buttons again made them unreadable. */
+.form fieldset:disabled button:disabled {
+  opacity: 1;
 }
 
 .field-row {
