@@ -462,6 +462,7 @@ import {
   getModel,
 } from "../services/modelRegistry";
 import { hashFile } from "../utils/hashFile";
+import { formatRegistryError } from "../utils/registryError.js";
 
 export default function VerifyModel() {
   const [modelName, setModelName] = useState("");
@@ -509,10 +510,10 @@ export default function VerifyModel() {
       setExists(result);
     } catch (err) {
       setError(
-        err?.shortMessage ||
-          err?.reason ||
-          err?.message ||
-          "Unable to check the model."
+        formatRegistryError(
+          err,
+          "Unable to check the model. Confirm that Hardhat Local is selected and the local node is running."
+        )
       );
     } finally {
       setLoading(false);
@@ -554,10 +555,10 @@ export default function VerifyModel() {
       setModel(result);
     } catch (err) {
       setError(
-        err?.shortMessage ||
-          err?.reason ||
-          err?.message ||
-          "Unable to retrieve the model record."
+        formatRegistryError(
+          err,
+          "Unable to retrieve the model record. Confirm that Hardhat Local is selected and the local node is running."
+        )
       );
     } finally {
       setLoading(false);
@@ -623,10 +624,10 @@ export default function VerifyModel() {
       }
     } catch (err) {
       setError(
-        err?.shortMessage ||
-          err?.reason ||
-          err?.message ||
-          "Unable to verify the model."
+        formatRegistryError(
+          err,
+          "Unable to verify the model. Confirm that Hardhat Local is selected and the local node is running."
+        )
       );
     } finally {
       setLoading(false);

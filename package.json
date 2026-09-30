@@ -16,7 +16,8 @@
     "export:frontend": "hardhat run --network localhost scripts/export-frontend-contract.ts",
     "frontend:dev": "npm --prefix frontend run dev",
     "frontend:build": "npm --prefix frontend run build",
-    "check": "npm run compile && npm run test && npm run frontend:build"
+    "frontend:test": "npm --prefix frontend test",
+    "check": "npm run compile && npm run test && npm run frontend:test && npm run frontend:build"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.4.0"

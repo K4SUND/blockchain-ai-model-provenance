@@ -8,6 +8,8 @@ An authorized model publisher calculates a cryptographic hash (digital fingerpri
 
 > ModelGuard does **not** require the team to train an AI model. The project can use a small, existing model artifact for demonstration. The assessed work is the blockchain registry, access control, version history, file hashing, verification, and revocation workflow.
 
+For a complete two-wallet walkthrough of every user-facing scenario, see [`docs/manual-testing/README.md`](docs/manual-testing/README.md).
+
 ## 1. Problem statement
 
 AI models are distributed as files such as ONNX, TensorFlow Lite, PyTorch, or other serialized artifacts. Between publication and deployment, a model could be:
@@ -398,7 +400,7 @@ Build these views:
 
   - `Verified — active registered model`
   - `Hash mismatch — file may have been modified`
-  - `Revoked — hash matches, but this version must not be used`
+  - `Revoked — this registered version must not be used`
   - `Not registered — no matching model and version`
 
 #### Model Details

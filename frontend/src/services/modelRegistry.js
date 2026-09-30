@@ -19,6 +19,7 @@
 
 import { BrowserProvider, Contract } from "ethers";
 import modelRegistryArtifact from "../contracts/ModelRegistry.json";
+import { userFacingError } from "../utils/registryError.js";
 
 export const MODEL_REGISTRY_NOT_CONFIGURED =
   "ModelRegistry deployment has not been configured yet.";
@@ -100,9 +101,22 @@ export async function connectWallet() {
 // -----------------------------------------------------------------------------
 
 export async function getReadOnlyRegistry() {
+  if (!hasWallet()) {
+    throw userFacingError(
+      "MetaMask was not detected. Install or enable the extension in this browser, then refresh the page."
+    );
+  }
+
   const address = await getRegistryAddress();
 
   const provider = new BrowserProvider(window.ethereum);
+  const network = await provider.getNetwork();
+
+  if (Number(network.chainId) !== CONFIG.chainId) {
+    throw userFacingError(
+      `Wrong network. Switch MetaMask to Hardhat Local (chain ID ${CONFIG.chainId}).`
+    );
+  }
 
   return new Contract(
     address,
@@ -112,7 +126,14 @@ export async function getReadOnlyRegistry() {
 }
 
 export async function getWritableRegistry() {
-  const { signer } = await connectWallet();
+  const { signer, chainId } = await connectWallet();
+
+  if (chainId !== CONFIG.chainId) {
+    throw userFacingError(
+      `Wrong network. Switch MetaMask to Hardhat Local (chain ID ${CONFIG.chainId}).`
+    );
+  }
+
   const address = await getRegistryAddress();
 
   return new Contract(
@@ -198,6 +219,14 @@ export async function registerModel({
   metadataURI,
 }) {
   const registry = await getWritableRegistry();
+  const publisherRole = await registry.PUBLISHER_ROLE();
+  const signerAddress = await registry.runner.getAddress();
+
+  if (!(await registry.hasRole(publisherRole, signerAddress))) {
+    throw userFacingError(
+      "Connected wallet is not an authorized publisher. Switch to the ModelGuard Publisher account and try again."
+    );
+  }
 
   const tx = await registry.registerModel(
     modelName,

@@ -23,6 +23,7 @@ import {
   revokeModel,
   hasRole,
 } from "../services/modelRegistry.js";
+import { formatRegistryError } from "../utils/registryError.js";
 
 const DEFAULT_ADMIN_ROLE = "0x" + "0".repeat(64);
 
@@ -134,10 +135,10 @@ export default function ModelDetails() {
       console.error("LOAD MODEL ERROR:", err);
 
       setError(
-        err?.shortMessage ||
-          err?.reason ||
-          err?.message ||
-          "Failed to load the model record."
+        formatRegistryError(
+          err,
+          "Failed to load the model record. Confirm that Hardhat Local is selected and the local node is running."
+        )
       );
     } finally {
       setLoading(false);
@@ -198,18 +199,12 @@ export default function ModelDetails() {
     } catch (err) {
       console.error("REVOKE MODEL ERROR:", err);
 
-      if (err?.code === 4001) {
-        setError(
-          "Transaction rejected in the wallet."
-        );
-      } else {
-        setError(
-          err?.shortMessage ||
-            err?.reason ||
-            err?.message ||
-            "Failed to revoke the model."
-        );
-      }
+      setError(
+        formatRegistryError(
+          err,
+          "Revocation failed. Confirm that the original Publisher account and Hardhat Local network are selected."
+        )
+      );
     } finally {
       setRevoking(false);
     }

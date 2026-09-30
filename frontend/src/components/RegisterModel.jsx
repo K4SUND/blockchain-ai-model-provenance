@@ -16,6 +16,7 @@
 import { useState } from "react";
 import { registerModel } from "../services/modelRegistry.js";
 import { hashFile } from "../utils/hashFile.js";
+import { formatRegistryError } from "../utils/registryError.js";
 
 export default function RegisterModel() {
   const [modelName, setModelName] = useState("");
@@ -104,16 +105,14 @@ export default function RegisterModel() {
       console.error("ERROR INFO:", err?.info);
       console.error("ERROR RECEIPT:", err?.receipt);
 
-      if (err?.code === 4001) {
-        setError("Transaction rejected by the wallet.");
-      } else {
-        setError(
-          err?.shortMessage ||
-            err?.reason ||
-            err?.message ||
-            "Failed to register the model."
-        );
-      }
+      setMessage("");
+
+      setError(
+        formatRegistryError(
+          err,
+          "Registration failed. Confirm that the Publisher account and Hardhat Local network are selected."
+        )
+      );
     } finally {
       setLoading(false);
     }
