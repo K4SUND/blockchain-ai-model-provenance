@@ -2,12 +2,15 @@ import ModelDetails from "./components/ModelDetails.jsx";
 import RegisterModel from "./components/RegisterModel.jsx";
 import VerifyModel from "./components/VerifyModel.jsx";
 import WalletPanel from "./components/WalletPanel.jsx";
+import useWallet from "./hooks/useWallet.js";
 
 /**
- * Initial collaboration shell. Components show their intended responsibilities
- * and can be implemented independently on separate feature branches.
+ * Page layout. Wallet state is held once here and passed to every panel,
+ * so switching accounts in MetaMask updates all of them together.
  */
 export default function App() {
+  const wallet = useWallet();
+
   return (
     <main className="app-shell">
       <header className="hero">
@@ -19,15 +22,14 @@ export default function App() {
         </p>
       </header>
 
-      <WalletPanel />
+      <WalletPanel wallet={wallet} />
 
       <div className="workspace-grid">
-        <RegisterModel />
-        <VerifyModel />
+        <RegisterModel wallet={wallet} />
+        <VerifyModel wallet={wallet} />
       </div>
 
-      <ModelDetails />
+      <ModelDetails wallet={wallet} />
     </main>
   );
 }
-

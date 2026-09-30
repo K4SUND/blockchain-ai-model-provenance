@@ -1,194 +1,115 @@
-// /**
-//  * TODO(FE-02):
-//  * - Detect an EIP-1193 browser wallet.
-//  * - Connect with ethers.BrowserProvider.
-//  * - Display the address, chain ID, and authorization role.
-//  * - Warn when the selected network is not configured.
-//  */
-// export default function WalletPanel() {
-//   return (
-//     <section className="panel" aria-labelledby="wallet-title">
-//       <div>
-//         <p className="section-label">Connection</p>
-//         <h2 id="wallet-title">Wallet and network</h2>
-//         <p className="muted">Wallet integration is ready to be implemented.</p>
-//       </div>
-//       <button type="button" disabled>
-//         Connect wallet
-//       </button>
-//     </section>
-//   );
-// }
+import { shortenAddress } from "./format.js";
 
-import { useEffect, useState } from "react";
-import {
-  hasWallet,
-  connectWallet,
-  switchToConfiguredNetwork,
-  CONFIG,
-} from "../services/modelRegistry";
+function roleLabel(roles) {
+  if (!roles.checked) return "Checking role…";
+  if (roles.isAdmin && roles.isPublisher) return "Administrator · Publisher";
+  if (roles.isAdmin) return "Administrator";
+  if (roles.isPublisher) return "Publisher";
+  return "Verifier (no special role)";
+}
 
-export default function WalletPanel() {
-  const [walletDetected, setWalletDetected] = useState(false);
-  const [address, setAddress] = useState("");
-  const [chainId, setChainId] = useState(null);
-  const [error, setError] = useState("");
-  const [connecting, setConnecting] = useState(false);
-
-  useEffect(() => {
-    if (!hasWallet()) {
-      setWalletDetected(false);
-      return;
-    }
-
-    setWalletDetected(true);
-
-    const updateWalletState = async () => {
-      try {
-        const accounts = await window.ethereum.request({
-          method: "eth_accounts",
-        });
-
-        const currentChainId = await window.ethereum.request({
-          method: "eth_chainId",
-        });
-
-        setAddress(accounts[0] || "");
-        setChainId(parseInt(currentChainId, 16));
-      } catch (err) {
-        setError(err.message || "Unable to read wallet state.");
-      }
-    };
-
-    updateWalletState();
-
-    const handleAccountsChanged = (accounts) => {
-      setAddress(accounts[0] || "");
-    };
-
-    const handleChainChanged = (chainIdHex) => {
-      const newChainId = parseInt(chainIdHex, 16);
-      setChainId(newChainId);
-    };
-
-    window.ethereum.on("accountsChanged", handleAccountsChanged);
-    window.ethereum.on("chainChanged", handleChainChanged);
-
-    return () => {
-      window.ethereum.removeListener(
-        "accountsChanged",
-        handleAccountsChanged
-      );
-
-      window.ethereum.removeListener(
-        "chainChanged",
-        handleChainChanged
-      );
-    };
-  }, []);
-
-  async function handleConnect() {
-    setError("");
-    setConnecting(true);
-
-    try {
-      const result = await connectWallet();
-
-      setAddress(result.address);
-      setChainId(result.chainId);
-    } catch (err) {
-      setError(err.message || "Failed to connect wallet.");
-    } finally {
-      setConnecting(false);
-    }
-  }
-
-  async function handleSwitchNetwork() {
-    setError("");
-
-    try {
-      await switchToConfiguredNetwork();
-
-      const currentChainId = await window.ethereum.request({
-        method: "eth_chainId",
-      });
-
-      setChainId(parseInt(currentChainId, 16));
-    } catch (err) {
-      setError(err.message || "Failed to switch network.");
-    }
-  }
-
-  const wrongNetwork =
-    chainId !== null && chainId !== CONFIG.chainId;
+/**
+ * Wallet, network, role, and registry status. The state itself lives in
+ * useWallet so every panel sees the same account.
+ *
+ * @param {object} props
+ * @param {ReturnType<import("../hooks/useWallet.js").default>} props.wallet
+ */
+export default function WalletPanel({ wallet }) {
+  const connected = Boolean(wallet.address);
 
   return (
-    <section className="panel" aria-labelledby="wallet-title">
-      <div>
+    <section className="panel wallet" aria-labelledby="wallet-title">
+      <div className="wallet-summary">
         <p className="section-label">Connection</p>
-
         <h2 id="wallet-title">Wallet and network</h2>
 
-        {!walletDetected && (
+        {!wallet.detected && (
           <p className="muted">
-            MetaMask was not detected. Please install MetaMask.
+            MetaMask was not detected.{" "}
+            <a href="https://metamask.io/download/" target="_blank" rel="noopener noreferrer">
+              Install MetaMask
+            </a>{" "}
+            and reload this page.
           </p>
         )}
 
-        {walletDetected && !address && (
+        {wallet.detected && !connected && (
           <p className="muted">
-            MetaMask detected. Connect your wallet to continue.
+            Verifying needs no account. Connect a wallet to register or revoke
+            models.
           </p>
         )}
 
-        {address && (
-          <div>
-            <p>
-              <strong>Address:</strong> {address}
-            </p>
+        {connected && (
+          <dl className="wallet-facts">
+            <div>
+              <dt>Account</dt>
+              <dd>
+                <code className="hash" title={wallet.address}>
+                  {shortenAddress(wallet.address)}
+                </code>
+              </dd>
+            </div>
+            <div>
+              <dt>Network</dt>
+              <dd>
+                {wallet.wrongNetwork ? (
+                  <span className="badge badge-warning">
+                    Wrong network (chain {wallet.chainId})
+                  </span>
+                ) : (
+                  <span className="badge badge-active">
+                    Hardhat Local ({wallet.chainId})
+                  </span>
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>Role</dt>
+              <dd>
+                <span className="badge badge-role">
+                  {wallet.wrongNetwork ? "Unknown" : roleLabel(wallet.roles)}
+                </span>
+              </dd>
+            </div>
+          </dl>
+        )}
 
-            <p>
-              <strong>Chain ID:</strong> {chainId}
-            </p>
+        {wallet.registryReady === false && (
+          <p className="notice notice-warning" role="status">
+            Registry contract not deployed. Run npm run deploy:local, then
+            reload.
+          </p>
+        )}
+        {wallet.registryReady && (
+          <p className="wallet-registry">
+            Registry contract{" "}
+            <code className="hash" title={wallet.registryAddress}>
+              {shortenAddress(wallet.registryAddress)}
+            </code>
+          </p>
+        )}
 
-            {wrongNetwork ? (
-              <div>
-                <p className="error">
-                  Wrong network. Expected Hardhat Local
-                  (Chain ID {CONFIG.chainId}).
-                </p>
-
-                <button
-                  type="button"
-                  onClick={handleSwitchNetwork}
-                >
-                  Switch to Hardhat
-                </button>
-              </div>
-            ) : (
-              <p>
-                <strong>Network:</strong> Hardhat Local
-              </p>
-            )}
-          </div>
+        {wallet.error && (
+          <p className="notice notice-error" role="alert">
+            {wallet.error}
+          </p>
         )}
       </div>
 
-      {!address && (
-        <button
-          type="button"
-          disabled={!walletDetected || connecting}
-          onClick={handleConnect}
-        >
-          {connecting ? "Connecting..." : "Connect wallet"}
-        </button>
-      )}
-
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
+      <div className="wallet-actions">
+        {wallet.detected && !connected && (
+          <button type="button" onClick={wallet.connect} disabled={wallet.connecting}>
+            {wallet.connecting ? "Check MetaMask…" : "Connect wallet"}
+          </button>
+        )}
+        {wallet.detected && wallet.wrongNetwork && (
+          <button type="button" onClick={wallet.switchNetwork}>
+            Switch to Hardhat Local
+          </button>
+        )}
+      </div>
     </section>
   );
 }
